@@ -1,15 +1,3 @@
-export function createJsonResource(uri: URL, value: unknown) {
-  return {
-    contents: [
-      {
-        uri: uri.href,
-        mimeType: "application/json",
-        text: JSON.stringify(value, null, 2),
-      },
-    ],
-  };
-}
-
 export function createJsonResult<T extends object>(value: T) {
   return {
     content: createTextContent(JSON.stringify(value, null, 2)),

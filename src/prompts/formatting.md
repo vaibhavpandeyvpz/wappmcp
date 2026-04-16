@@ -28,12 +28,8 @@ When the user asks you to message them (or someone) on WhatsApp and gives a phon
   - `+91 98765 43210` → `919876543210@c.us`
   - `44 20 7123 4567` → `442071234567@c.us`
 - Do not ask the user to share a chat ID or to message first when they have already provided a phone number.
-- If the user names a recipient (for example, "send this to Ramesh") and no phone number is given, use `whatsapp_contact_search` resource to find candidate contacts before sending.
-- If `whatsapp_contacts_search` returns multiple plausible contacts, or `hasMore: true`, ask the user to confirm which contact they mean before sending any message.
+- If the user names a recipient (for example, "send this to Ramesh") and no phone number is given, use `whatsapp_search_contacts` to find candidate contacts before sending.
+- If `whatsapp_search_contacts` returns multiple plausible contacts, or `more: true`, ask the user to confirm which contact they mean before sending any message.
 - WhatsApp IDs may appear as either `@c.us` or `@lid` for the same person.
 - When both are available for the same recipient, prefer `@lid` as the final `chatId` used for `whatsapp_send_message` and other tools.
 - If only one format is available, use it directly.
-
-## Incoming WhatsApp Messages
-
-Incoming messages from "whatsapp" source will include the message text and any additional metadata. They are one-way: read them and act, no reply expected.

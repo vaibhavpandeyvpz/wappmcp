@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDirectory, "..");
-const source = resolve(projectRoot, "src", "instructions.md");
-const destination = resolve(projectRoot, "dist", "instructions.md");
+const source = resolve(projectRoot, "src", "prompts");
+const destination = resolve(projectRoot, "dist", "prompts");
 
 await mkdir(dirname(destination), { recursive: true });
-await cp(source, destination);
+await cp(source, destination, { recursive: true });

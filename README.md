@@ -12,7 +12,7 @@ It lets MCP-compatible clients read WhatsApp data, send and manage messages, and
 
 - Exposes WhatsApp as an MCP server over stdio.
 - Supports multiple local profiles.
-- Provides read-only resources for chats, contacts, messages, status, and account details.
+- Provides read tools for chats, contacts, messages, status, and account details.
 - Includes mutating tools for sending, replying, reacting, editing, deleting, forwarding, and typing.
 - Can emit incoming message events over an optional MCP notification channel.
 - Stores local app data under `~/.wwebmcp/`.
@@ -118,28 +118,23 @@ bunx wwebmcp profiles
 
 Lists locally stored profiles.
 
-## MCP Resources
-
-The server currently exposes these read-only resources:
-
-- `whatsapp://me`
-- `whatsapp://status`
-- `whatsapp://chats`
-- `whatsapp://chats/{chatId}`
-- `whatsapp://chats/{chatId}/participants`
-- `whatsapp://chats/{chatId}/messages?limit=50`
-- `whatsapp://messages/search{?query,chatId,page,limit}`
-- `whatsapp://messages/{messageId}`
-- `whatsapp://contacts`
-- `whatsapp://contacts/{contactId}`
-- `whatsapp://contacts/search{?query,limit}`
-- `whatsapp://contacts/{contactId}/lid`
-- `whatsapp://numbers/{number}`
-
 ## MCP Tools
 
 The server currently exposes these tools:
 
+- `whatsapp_get_me`
+- `whatsapp_get_status`
+- `whatsapp_list_chats`
+- `whatsapp_get_chat`
+- `whatsapp_get_chat_participants`
+- `whatsapp_get_chat_messages`
+- `whatsapp_search_messages`
+- `whatsapp_get_message`
+- `whatsapp_list_contacts`
+- `whatsapp_get_contact`
+- `whatsapp_search_contacts`
+- `whatsapp_get_contact_lid`
+- `whatsapp_lookup_number`
 - `whatsapp_send_message`
 - `whatsapp_send_media_from_base64`
 - `whatsapp_send_media_from_path`

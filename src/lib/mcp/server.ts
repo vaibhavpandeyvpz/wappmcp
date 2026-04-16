@@ -1,22 +1,24 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  McpServer,
-  ResourceTemplate,
-} from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { z } from "zod";
-import { createJsonResource, createJsonResult } from "./helpers.js";
-import { parseFiniteNumber } from "../number.js";
+import { createJsonResult } from "./helpers.js";
 import { packageMetadata } from "../package-metadata.js";
 import { WhatsAppChannel } from "../whatsapp/channel.js";
 import type { WhatsAppSession } from "../whatsapp/session.js";
 
-const instructions = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), "../../instructions.md"),
-  "utf8",
-);
+function instructions(channel: boolean = false): string {
+  const files = ["formatting.md", channel ? "channel.md" : null].filter(
+    Boolean,
+  );
+  const root = dirname(fileURLToPath(import.meta.url));
+  const sections = files.map((file) =>
+    readFileSync(resolve(root, `../../prompts/${file}`), "utf8").trim(),
+  );
+  return `${sections.join("\n\n").trim()}\n`;
+}
 
 export class WhatsAppMcpServer {
   readonly mcp: McpServer;
@@ -38,14 +40,13 @@ export class WhatsAppMcpServer {
               }
             : undefined,
         },
-        instructions,
+        instructions: instructions(!!channel),
       },
     );
   }
 
   static create(session: WhatsAppSession, channel?: string): WhatsAppMcpServer {
     const server = new WhatsAppMcpServer(session, channel);
-    server.registerResources();
     server.registerTools();
     return server;
   }
@@ -67,255 +68,181 @@ export class WhatsAppMcpServer {
     await channel.start();
   }
 
-  private registerResources(): void {
-    this.mcp.registerResource(
-      "whatsapp_me",
-      "whatsapp://me",
+  private registerTools(): void {
+    this.mcp.registerTool(
+      "whatsapp_get_me",
       {
-        title: "WhatsApp connected user",
+        title: "Get connected WhatsApp user",
         description:
-          "Return the current session details for this WhatsApp user (me).",
-        mimeType: "application/json",
+          "Return the current session details for the connected WhatsApp user.",
       },
-      async (uri) => createJsonResource(uri, await this.session.getMe()),
+      async () => createJsonResult(await this.session.getMe()),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_status",
-      "whatsapp://status",
+    this.mcp.registerTool(
+      "whatsapp_get_status",
       {
-        title: "WhatsApp connection status",
+        title: "Get WhatsApp connection status",
         description:
           "Return the current connection status for this WhatsApp profile.",
-        mimeType: "application/json",
       },
-      async (uri) => createJsonResource(uri, await this.session.getStatus()),
+      async () => createJsonResult(await this.session.getStatus()),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_chats",
-      "whatsapp://chats",
+    this.mcp.registerTool(
+      "whatsapp_list_chats",
       {
-        title: "WhatsApp chats",
+        title: "List WhatsApp chats",
         description:
           "List all chats available in the connected WhatsApp account.",
-        mimeType: "application/json",
       },
-      async (uri) => createJsonResource(uri, await this.session.listChats()),
+      async () => createJsonResult(await this.session.listChats()),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_chat",
-      new ResourceTemplate("whatsapp://chats/{chatId}", { list: undefined }),
+    this.mcp.registerTool(
+      "whatsapp_get_chat",
       {
-        title: "WhatsApp chat",
+        title: "Get WhatsApp chat",
         description:
           "Get details for a chat by ID, including participants for groups.",
-        mimeType: "application/json",
+        inputSchema: z.object({
+          chatId: z.string().describe("Target chat ID."),
+        }),
       },
-      async (uri, { chatId }) => {
-        const resolvedChatId = Array.isArray(chatId) ? chatId[0] : chatId;
-        return createJsonResource(
-          uri,
-          await this.session.getChatInfo(resolvedChatId),
-        );
-      },
+      async ({ chatId }) =>
+        createJsonResult(await this.session.getChatInfo(chatId)),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_chat_participants",
-      new ResourceTemplate("whatsapp://chats/{chatId}/participants", {
-        list: undefined,
-      }),
+    this.mcp.registerTool(
+      "whatsapp_get_chat_participants",
       {
-        title: "WhatsApp chat participants",
+        title: "Get WhatsApp chat participants",
         description:
           "List participants in a group chat. Returns an empty list for non-group chats.",
-        mimeType: "application/json",
+        inputSchema: z.object({
+          chatId: z.string().describe("Target chat ID."),
+        }),
       },
-      async (uri, { chatId }) => {
-        const single = Array.isArray(chatId) ? chatId[0] : chatId;
-        return createJsonResource(
-          uri,
-          await this.session.getChatParticipants(single),
-        );
-      },
+      async ({ chatId }) =>
+        createJsonResult(await this.session.getChatParticipants(chatId)),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_chat_messages",
-      new ResourceTemplate("whatsapp://chats/{chatId}/messages{?limit}", {
-        list: undefined,
-      }),
+    this.mcp.registerTool(
+      "whatsapp_get_chat_messages",
       {
-        title: "WhatsApp chat messages",
-        description:
-          "Fetch recent messages from a chat for context. Optional limit query parameter defaults to 50.",
-        mimeType: "application/json",
+        title: "Get WhatsApp chat messages",
+        description: "Fetch recent messages from a chat for context.",
+        inputSchema: z.object({
+          chatId: z.string().describe("Target chat ID."),
+          limit: z.number().int().positive().max(100).optional(),
+        }),
       },
-      async (uri, { chatId }) => {
-        const single = Array.isArray(chatId) ? chatId[0] : chatId;
-        const limit = parseFiniteNumber(uri.searchParams.get("limit"), "limit");
-        if (limit !== undefined && limit < 1) {
-          throw new Error("limit must be a positive number");
-        }
-
-        return createJsonResource(
-          uri,
-          await this.session.getChatMessages(single, limit),
-        );
-      },
+      async ({ chatId, limit }) =>
+        createJsonResult(await this.session.getChatMessages(chatId, limit)),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_message_search",
-      new ResourceTemplate(
-        "whatsapp://messages/search{?query,chatId,page,limit}",
-        {
-          list: undefined,
-        },
-      ),
+    this.mcp.registerTool(
+      "whatsapp_search_messages",
       {
-        title: "WhatsApp message search",
+        title: "Search WhatsApp messages",
         description:
           "Search messages globally or within a chat using query and optional chatId, page, and limit parameters.",
-        mimeType: "application/json",
+        inputSchema: z.object({
+          query: z.string().describe("Search query."),
+          chatId: z.string().optional().describe("Optional chat ID scope."),
+          page: z.number().int().positive().optional(),
+          limit: z.number().int().positive().optional(),
+        }),
       },
-      async (uri) => {
-        const page = parseFiniteNumber(uri.searchParams.get("page"), "page");
-        const limit = parseFiniteNumber(uri.searchParams.get("limit"), "limit");
-
-        if (page !== undefined && page < 1) {
-          throw new Error("page must be a positive number");
-        }
-
-        if (limit !== undefined && limit < 1) {
-          throw new Error("limit must be a positive number");
-        }
-
-        return createJsonResource(
-          uri,
-          await this.session.searchMessages(
-            uri.searchParams.get("query") ?? "",
-            uri.searchParams.get("chatId") ?? undefined,
-            page,
-            limit,
-          ),
-        );
-      },
+      async ({ query, chatId, page, limit }) =>
+        createJsonResult(
+          await this.session.searchMessages(query, chatId, page, limit),
+        ),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_message",
-      new ResourceTemplate("whatsapp://messages/{messageId}", {
-        list: undefined,
-      }),
+    this.mcp.registerTool(
+      "whatsapp_get_message",
       {
-        title: "WhatsApp message",
+        title: "Get WhatsApp message",
         description: "Get a message snapshot by message ID.",
-        mimeType: "application/json",
+        inputSchema: z.object({
+          messageId: z.string().describe("Target message ID."),
+        }),
       },
-      async (uri, { messageId }) => {
-        const single = Array.isArray(messageId) ? messageId[0] : messageId;
-        return createJsonResource(uri, await this.session.getMessage(single));
-      },
+      async ({ messageId }) =>
+        createJsonResult(await this.session.getMessage(messageId)),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_contacts",
-      "whatsapp://contacts",
+    this.mcp.registerTool(
+      "whatsapp_list_contacts",
       {
-        title: "WhatsApp contacts",
+        title: "List WhatsApp contacts",
         description:
           "List all contacts available in the connected WhatsApp account.",
-        mimeType: "application/json",
       },
-      async (uri) => createJsonResource(uri, await this.session.listContacts()),
+      async () => createJsonResult(await this.session.listContacts()),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_contact",
-      new ResourceTemplate("whatsapp://contacts/{contactId}", {
-        list: undefined,
-      }),
+    this.mcp.registerTool(
+      "whatsapp_get_contact",
       {
-        title: "WhatsApp contact",
+        title: "Get WhatsApp contact",
         description: "Get details for a specific contact by contact ID.",
-        mimeType: "application/json",
+        inputSchema: z.object({
+          contactId: z.string().describe("Target contact ID."),
+        }),
       },
-      async (uri, { contactId }) => {
-        const single = Array.isArray(contactId) ? contactId[0] : contactId;
-        return createJsonResource(
-          uri,
-          await this.session.getContactInfo(single),
-        );
-      },
+      async ({ contactId }) =>
+        createJsonResult(await this.session.getContactInfo(contactId)),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_contact_search",
-      new ResourceTemplate("whatsapp://contacts/search{?query,limit}", {
-        list: undefined,
-      }),
+    this.mcp.registerTool(
+      "whatsapp_search_contacts",
       {
-        title: "WhatsApp contact search",
+        title: "Search WhatsApp contacts",
         description:
           "Search contacts by name, pushname, short name, number, or ID using query and optional limit parameters.",
-        mimeType: "application/json",
+        inputSchema: z.object({
+          query: z.string().describe("Search query."),
+          limit: z.number().int().positive().max(50).optional(),
+        }),
       },
-      async (uri) => {
-        const limit = parseFiniteNumber(uri.searchParams.get("limit"), "limit");
-        if (limit !== undefined && limit < 1) {
-          throw new Error("limit must be a positive number");
-        }
-
-        return createJsonResource(
-          uri,
-          await this.session.searchContacts(
-            uri.searchParams.get("query") ?? "",
-            limit,
-          ),
-        );
-      },
+      async ({ query, limit }) =>
+        createJsonResult(await this.session.searchContacts(query, limit)),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_contact_lid",
-      new ResourceTemplate("whatsapp://contacts/{contactId}/lid", {
-        list: undefined,
-      }),
+    this.mcp.registerTool(
+      "whatsapp_get_contact_lid",
       {
-        title: "WhatsApp contact LID",
+        title: "Get WhatsApp contact LID",
         description:
           "Return the LID mapping for a contact ID, when available from the current client.",
-        mimeType: "application/json",
+        inputSchema: z.object({
+          contactId: z.string().describe("Target contact ID."),
+        }),
       },
-      async (uri, { contactId }) => {
-        const single = Array.isArray(contactId) ? contactId[0] : contactId;
-        return createJsonResource(
-          uri,
-          await this.session.getLidForContact(single),
-        );
-      },
+      async ({ contactId }) =>
+        createJsonResult({
+          lid: await this.session.getLidForContact(contactId),
+        }),
     );
 
-    this.mcp.registerResource(
-      "whatsapp_number",
-      new ResourceTemplate("whatsapp://numbers/{number}", { list: undefined }),
+    this.mcp.registerTool(
+      "whatsapp_lookup_number",
       {
-        title: "WhatsApp number lookup",
+        title: "Lookup WhatsApp number",
         description:
           "Look up whether a number is registered on WhatsApp and return normalized metadata for it.",
-        mimeType: "application/json",
+        inputSchema: z.object({
+          number: z
+            .string()
+            .describe("Phone number or WhatsApp number to look up."),
+        }),
       },
-      async (uri, { number }) => {
-        const single = Array.isArray(number) ? number[0] : number;
-        return createJsonResource(uri, await this.session.lookupNumber(single));
-      },
+      async ({ number }) =>
+        createJsonResult(await this.session.lookupNumber(number)),
     );
-  }
 
-  private registerTools(): void {
     this.mcp.registerTool(
       "whatsapp_send_message",
       {
