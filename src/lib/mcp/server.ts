@@ -7,11 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { z } from "zod";
-import {
-  createJsonResource,
-  createJsonResult,
-  createTextContent,
-} from "./helpers.js";
+import { createJsonResource, createJsonResult } from "./helpers.js";
 import { parseFiniteNumber } from "../number.js";
 import { packageMetadata } from "../package-metadata.js";
 import { WhatsAppChannel } from "../whatsapp/channel.js";

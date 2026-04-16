@@ -17,7 +17,7 @@ export function createJsonResult<T extends object>(value: T) {
   };
 }
 
-export function createTextContent(
+function createTextContent(
   text: string,
 ): Array<{ type: "text"; text: string }> {
   return [{ type: "text", text }];
