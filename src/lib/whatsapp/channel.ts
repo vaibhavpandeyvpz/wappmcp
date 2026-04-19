@@ -44,6 +44,8 @@ export class WhatsAppChannel {
               content: JSON.stringify(event),
               meta: {
                 source: "whatsapp",
+                user: event.message.sender.id,
+                session: event.message.chat.id,
               },
             },
           } as never);

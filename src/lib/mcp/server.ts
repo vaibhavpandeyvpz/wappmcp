@@ -36,6 +36,8 @@ export class WhatsAppMcpServer {
         capabilities: {
           experimental: channel
             ? {
+                "identity/user": { path: "meta.user" },
+                "identity/session": { path: "meta.session" },
                 [channel]: {},
               }
             : undefined,
