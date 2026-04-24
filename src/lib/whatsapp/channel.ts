@@ -8,6 +8,9 @@ import type {
 } from "./types.js";
 import { saveMessageMedia } from "../attachments.js";
 
+const PERMISSION_REPLY_RE =
+  /^\s*(yes|y|always|a|no|n)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*$/i;
+
 export interface MessageChannelEvent {
   source: "whatsapp";
   self: Entity;
@@ -37,6 +40,18 @@ export class WhatsAppChannel {
     const onMessage = (message: WwebMessage) => {
       void (async () => {
         try {
+          const verdict = parsePermissionVerdict(message.body ?? "");
+          if (verdict) {
+            await this.mcp.notification({
+              method: "notifications/hooman/channel/permission",
+              params: {
+                request_id: verdict.requestId,
+                behavior: verdict.behavior,
+              },
+            } as never);
+            return;
+          }
+
           const event = await this.createEvent(message);
           await this.mcp.notification({
             method: `notifications/${this.channel}`,
@@ -46,6 +61,7 @@ export class WhatsAppChannel {
                 source: "whatsapp",
                 user: event.message.sender.id,
                 session: event.message.chat.id,
+                thread: event.message.id,
               },
             },
           } as never);
@@ -103,4 +119,23 @@ export class WhatsAppChannel {
       text: msg.body,
     };
   }
+}
+
+function parsePermissionVerdict(text: string): {
+  requestId: string;
+  behavior: "allow_once" | "allow_always" | "deny";
+} | null {
+  const match = PERMISSION_REPLY_RE.exec(text);
+  if (!match) {
+    return null;
+  }
+  const command = match[1]!.toLowerCase();
+  const requestId = match[2]!.toLowerCase();
+  if (command === "yes" || command === "y") {
+    return { requestId, behavior: "allow_once" };
+  }
+  if (command === "always" || command === "a") {
+    return { requestId, behavior: "allow_always" };
+  }
+  return { requestId, behavior: "deny" };
 }

@@ -15,7 +15,7 @@ It lets MCP-compatible clients read WhatsApp data, send and manage messages, and
 - Provides read tools for chats, contacts, messages, status, and account details.
 - Includes mutating tools for sending, replying, reacting, editing, deleting, forwarding, and typing.
 - Can emit incoming message events over an optional MCP notification channel.
-- Stores local app data under `~/.wappmcp/`.
+- Stores local app data under `./.wappmcp/` when that folder exists in the current working directory, otherwise `~/.wappmcp/`.
 
 ## Requirements
 
@@ -66,10 +66,10 @@ npx wappmcp connect --profile personal
 npx wappmcp mcp --profile personal
 ```
 
-3. If your MCP host supports notifications and you want incoming WhatsApp events, provide a channel name:
+3. If your MCP host supports notifications and you want incoming WhatsApp events, enable channels:
 
 ```bash
-npx wappmcp mcp --profile personal --channel claude/channel
+npx wappmcp mcp --profile personal --channels
 ```
 
 The server uses stdio, so it is meant to be launched by an MCP client or wrapper rather than browsed directly in a terminal.
@@ -97,7 +97,7 @@ Starts the stdio MCP server for a connected profile.
 Optional channel support:
 
 ```bash
-npx wappmcp mcp --profile sales --channel claude/channel
+npx wappmcp mcp --profile sales --channels
 ```
 
 ### Disconnect
@@ -147,12 +147,14 @@ The server currently exposes these tools:
 
 ## Push Channel
 
-When started with `--channel <name>`, the server:
+When started with `--channels`, the server:
 
-- advertises the experimental MCP capability `<name>`
-- advertises `identity/user` with path `meta.user`
-- advertises `identity/session` with path `meta.session`
-- emits `notifications/<name>` for incoming WhatsApp `message` events
+- advertises the experimental MCP capability `hooman/channel`
+- advertises `hooman/user` with path `meta.user`
+- advertises `hooman/session` with path `meta.session`
+- advertises `hooman/thread` with path `meta.thread`
+- advertises `hooman/channel/permission` for remote daemon approvals
+- emits `notifications/hooman/channel` for incoming WhatsApp `message` events
 
 Each notification includes:
 
@@ -160,6 +162,7 @@ Each notification includes:
 - `meta.source`: always `whatsapp`
 - `meta.user`: the sender identity seed for the incoming message
 - `meta.session`: the chat identity seed for the incoming message
+- `meta.thread`: the WhatsApp message ID for the incoming message
 
 The JSON-decoded `content` payload includes:
 
@@ -168,11 +171,13 @@ The JSON-decoded `content` payload includes:
 - `message`
 - `text`
 
-If the incoming message or its quoted parent contains media, attachments are downloaded and included in the emitted event payload. Files are stored under `~/.wappmcp/attachments/`.
+If the incoming message or its quoted parent contains media, attachments are downloaded and included in the emitted event payload. Files are stored under `./.wappmcp/attachments/` when `./.wappmcp` exists, otherwise `~/.wappmcp/attachments/`.
+
+When Hooman sends `notifications/hooman/channel/permission_request`, `wappmcp` posts the request back into the originating WhatsApp chat and waits for a reply referencing the same UUID. Supported replies are `yes <uuid>`, `always <uuid>`, and `no <uuid>`, which are relayed back over `notifications/hooman/channel/permission`.
 
 ## Local Data
 
-`wappmcp` stores local state under `~/.wappmcp/`:
+`wappmcp` stores local state under `./.wappmcp/` when that folder exists in the current working directory, otherwise `~/.wappmcp/`:
 
 - `profiles/` for WhatsApp profile/session data
 - `attachments/` for downloaded incoming media attachments

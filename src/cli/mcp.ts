@@ -19,7 +19,10 @@ export class McpCommand implements CliCommand {
       .command("mcp")
       .description("Start the stdio MCP server for a WhatsApp profile")
       .requiredOption("--profile <name>", "Profile name, for example sales")
-      .option("--channel <name>", "Channel name, for receiving notifications")
+      .option(
+        "--channels",
+        "Enable hooman/channel notifications for WhatsApp messages",
+      )
       .option(
         "--wait-for <ms>",
         "Maximum time to wait for WhatsApp startup state before giving up",
@@ -30,7 +33,7 @@ export class McpCommand implements CliCommand {
 
   private async action(options: {
     profile: string;
-    channel?: string;
+    channels?: boolean;
     waitFor: string;
   }): Promise<void> {
     const waitForMs = parseFiniteNumber(options.waitFor, "--wait-for");
@@ -69,9 +72,12 @@ export class McpCommand implements CliCommand {
       const outcome = await session.waitForStartup(waitForMs);
 
       if (outcome.kind === "ready") {
-        const server = WhatsAppMcpServer.create(session, options.channel);
+        const server = WhatsAppMcpServer.create(
+          session,
+          Boolean(options.channels),
+        );
         await server.start(new StdioServerTransport());
-        if (options.channel) {
+        if (options.channels) {
           await server.subscribe();
         }
         keep = true;

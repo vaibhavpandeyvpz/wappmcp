@@ -1,19 +1,28 @@
 import { mkdir, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 export const APP_FOLDER = ".wappmcp";
 
+export function appRoot(): string {
+  const local = join(process.cwd(), APP_FOLDER);
+  if (existsSync(local)) {
+    return local;
+  }
+  return join(homedir(), APP_FOLDER);
+}
+
 export function attachmentsRoot(): string {
-  return join(homedir(), APP_FOLDER, "attachments");
+  return join(appRoot(), "attachments");
 }
 
 export function webCacheRoot(): string {
-  return join(homedir(), APP_FOLDER, ".wwebjs_cache");
+  return join(appRoot(), ".wwebjs_cache");
 }
 
 export function profilesRoot(): string {
-  return join(homedir(), APP_FOLDER, "profiles");
+  return join(appRoot(), "profiles");
 }
 
 export function assertProfileName(profile: string): string {
