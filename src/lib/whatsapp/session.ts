@@ -393,13 +393,15 @@ export class WhatsAppSession {
     messageId: string,
     text: string,
     chatId?: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const message = await this.client!.getMessageById(messageId);
     if (!message) {
       throw new Error(`Message with ID ${messageId} not found`);
     }
 
-    await message.reply(text, chatId).then((message) => message.id._serialized);
+    return message
+      .reply(text, chatId)
+      .then((message) => message.id._serialized);
   }
 
   async getChatMessages(chatId: string, limit = 50): Promise<Message[]> {

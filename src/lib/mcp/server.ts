@@ -27,6 +27,10 @@ function instructions(channel: boolean = false): string {
 
 export class WhatsAppMcpServer {
   readonly mcp: McpServer;
+  private readonly permissionRequestsByPromptMessageId = new Map<
+    string,
+    string
+  >();
 
   private constructor(
     private readonly session: WhatsAppSession,
@@ -79,6 +83,7 @@ export class WhatsAppMcpServer {
       this.session,
       this.mcp.server,
       HOOMAN_CHANNEL,
+      this.permissionRequestsByPromptMessageId,
     );
     await channel.start();
   }
@@ -461,14 +466,23 @@ export class WhatsAppMcpServer {
           `Description: ${params.description}`,
           `Input: ${params.input_preview}`,
           "",
-          `Reply "yes ${params.request_id}", "always ${params.request_id}", or "no ${params.request_id}".`,
+          'Reply to this message with "yes", "always", or "no".',
         ].join("\n");
         const messageId = params.meta?.thread?.trim();
+        let promptMessageId: string;
         if (messageId) {
-          await this.session.replyToMessage(messageId, text, chatId);
-          return;
+          promptMessageId = await this.session.replyToMessage(
+            messageId,
+            text,
+            chatId,
+          );
+        } else {
+          promptMessageId = await this.session.sendMessage(chatId, text);
         }
-        await this.session.sendMessage(chatId, text);
+        this.permissionRequestsByPromptMessageId.set(
+          promptMessageId,
+          params.request_id,
+        );
       },
     );
   }

@@ -1,15 +1,13 @@
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { WhatsAppSession } from "./session.js";
 import type {
+  ChannelPermissionBehavior,
   Entity,
   Message,
   MessageWithParent,
   WwebMessage,
 } from "./types.js";
 import { saveMessageMedia } from "../attachments.js";
-
-const PERMISSION_REPLY_RE =
-  /^\s*(yes|y|always|a|no|n)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*$/i;
 
 export interface MessageChannelEvent {
   source: "whatsapp";
@@ -32,6 +30,7 @@ export class WhatsAppChannel {
     private readonly session: WhatsAppSession,
     private readonly mcp: Server,
     private readonly channel: string,
+    private readonly permissionRequests: Map<string, string>,
   ) {}
 
   async start(): Promise<void> {
@@ -40,8 +39,9 @@ export class WhatsAppChannel {
     const onMessage = (message: WwebMessage) => {
       void (async () => {
         try {
-          const verdict = parsePermissionVerdict(message.body ?? "");
+          const verdict = await this.parsePermissionVerdict(message);
           if (verdict) {
+            this.permissionRequests.delete(verdict.messageId);
             await this.mcp.notification({
               method: "notifications/hooman/channel/permission",
               params: {
@@ -119,23 +119,65 @@ export class WhatsAppChannel {
       text: msg.body,
     };
   }
+
+  private async parsePermissionVerdict(message: WwebMessage): Promise<{
+    requestId: string;
+    behavior: ChannelPermissionBehavior;
+    messageId: string;
+  } | null> {
+    if (!message.hasQuotedMsg) {
+      return null;
+    }
+
+    let quoted: WwebMessage | undefined;
+    try {
+      quoted = await message.getQuotedMessage();
+    } catch {
+      return null;
+    }
+
+    const messageId = quoted?.id?._serialized;
+    if (!messageId) {
+      return null;
+    }
+
+    const requestId = this.permissionRequests.get(messageId);
+    if (!requestId) {
+      return null;
+    }
+
+    const behavior = parsePermissionBehavior(message.body ?? "");
+    if (!behavior) {
+      return null;
+    }
+
+    return {
+      requestId,
+      behavior,
+      messageId,
+    };
+  }
 }
 
-function parsePermissionVerdict(text: string): {
-  requestId: string;
-  behavior: "allow_once" | "allow_always" | "deny";
-} | null {
-  const match = PERMISSION_REPLY_RE.exec(text);
-  if (!match) {
+function parsePermissionBehavior(
+  text: string,
+): ChannelPermissionBehavior | null {
+  const command = text.trim().toLowerCase();
+  if (!command) {
     return null;
   }
-  const command = match[1]!.toLowerCase();
-  const requestId = match[2]!.toLowerCase();
-  if (command === "yes" || command === "y") {
-    return { requestId, behavior: "allow_once" };
+
+  if (command === "yes" || command === "y" || command === "allow") {
+    return "allow_once";
   }
-  if (command === "always" || command === "a") {
-    return { requestId, behavior: "allow_always" };
+
+  if (command === "always" || command === "a" || command === "allow always") {
+    return "allow_always";
   }
-  return { requestId, behavior: "deny" };
+
+  if (command === "no" || command === "n" || command === "deny") {
+    return "deny";
+  }
+
+  return null;
 }

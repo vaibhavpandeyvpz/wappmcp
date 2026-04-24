@@ -137,3 +137,5 @@ export interface MessageSearchResult {
   messages: Message[];
   meta: MessageSearchMeta;
 }
+
+export type ChannelPermissionBehavior = "allow_once" | "allow_always" | "deny";

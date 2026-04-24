@@ -181,7 +181,7 @@ The JSON-decoded `content` payload includes:
 
 If the incoming message or its quoted parent contains media, attachments are downloaded and included in the emitted event payload. Files are stored under `./.wappmcp/attachments/` when `./.wappmcp` exists, otherwise `~/.wappmcp/attachments/`.
 
-When Hooman sends `notifications/hooman/channel/permission_request`, `wappmcp` posts the request back into the originating WhatsApp chat and waits for a reply referencing the same UUID. Supported replies are `yes <uuid>`, `always <uuid>`, and `no <uuid>`, which are relayed back over `notifications/hooman/channel/permission`.
+When Hooman sends `notifications/hooman/channel/permission_request`, `wappmcp` posts the request back into the originating WhatsApp chat and waits for a reply to that exact message. Supported replies are `yes`, `always`, and `no`, which are relayed back over `notifications/hooman/channel/permission`.
 
 ## Local Data
 
