@@ -34,6 +34,7 @@ type ChatCandidate = {
 
 export function ConfigureApp({
   initial,
+  headless,
   onSave,
   onExit,
 }: ConfigureAppProps): React.JSX.Element {
@@ -90,6 +91,7 @@ export function ConfigureApp({
     void runTask("Connecting WhatsApp...", async () => {
       const { WhatsAppSession } = await import("../lib/whatsapp/session.js");
       const session = new WhatsAppSession({
+        headless,
         onQr: (qr) => {
           void renderQr(qr).then(setQrText);
         },
@@ -117,12 +119,12 @@ export function ConfigureApp({
         await session.destroy();
       }
     });
-  }, [runTask, setSuccess]);
+  }, [headless, runTask, setSuccess]);
 
   const disconnectWhatsApp = useCallback(() => {
     void runTask("Disconnecting WhatsApp...", async () => {
       const { WhatsAppSession } = await import("../lib/whatsapp/session.js");
-      const session = new WhatsAppSession({});
+      const session = new WhatsAppSession({ headless });
       try {
         await session.start();
         const startup = await session.waitForStartup(DISCONNECT_WAIT_FOR_MS);
@@ -135,12 +137,13 @@ export function ConfigureApp({
       }
       setSuccess("Disconnected WhatsApp and removed local profile data.");
     });
-  }, [runTask, setSuccess]);
+  }, [headless, runTask, setSuccess]);
 
   const loadAllowlistCandidates = useCallback(() => {
     void runTask("Loading WhatsApp users and chats...", async () => {
       const { WhatsAppSession } = await import("../lib/whatsapp/session.js");
       const session = new WhatsAppSession({
+        headless,
         onQr: (qr) => {
           void renderQr(qr).then(setQrText);
         },
@@ -163,7 +166,7 @@ export function ConfigureApp({
         await session.destroy();
       }
     });
-  }, [runTask]);
+  }, [headless, runTask]);
 
   const openUsersEditor = useCallback(() => {
     loadAllowlistCandidates();

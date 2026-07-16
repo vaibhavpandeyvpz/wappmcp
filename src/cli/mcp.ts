@@ -31,11 +31,13 @@ export class McpCommand implements CliCommand {
         "Maximum time to wait for WhatsApp startup state before giving up",
         String(DEFAULT_WAIT_FOR_MS),
       )
+      .option("--headless", "Run the WhatsApp browser without a visible window")
       .action(this.action.bind(this));
   }
 
   private async action(options: {
     channels?: boolean;
+    headless?: boolean;
     waitFor: string;
   }): Promise<void> {
     const waitForMs = parseFiniteNumber(options.waitFor, "--wait-for");
@@ -51,6 +53,7 @@ export class McpCommand implements CliCommand {
     const { WhatsAppSession } = await import("../lib/whatsapp/session.js");
     const session = new WhatsAppSession({
       io: this.io,
+      headless: Boolean(options.headless),
     });
     let destroyed = false;
     const closeSession = async () => {

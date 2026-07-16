@@ -95,7 +95,7 @@ npx wappmcp configure
 bunx wappmcp configure
 ```
 
-Opens an interactive configure UI (Ink) to manage WhatsApp connection and event allowlist:
+Opens an interactive configure UI (Ink) to manage WhatsApp connection and event allowlist. WhatsApp Web opens in a visible browser window by default; pass `--headless` to run it without one.
 
 - connect/disconnect session
 - `Allowed users`
@@ -122,7 +122,7 @@ npx wappmcp mcp
 bunx wappmcp mcp
 ```
 
-Starts the stdio MCP server for the configured WhatsApp session.
+Starts the stdio MCP server for the configured WhatsApp session. WhatsApp Web opens in a visible browser window by default; pass `--headless` to run it without one.
 
 Optional channel support:
 

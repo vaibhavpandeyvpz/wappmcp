@@ -6,12 +6,13 @@ import {
 } from "../lib/whatsapp/config.js";
 import { ConfigureApp } from "./app.js";
 
-export async function configure(): Promise<void> {
+export async function configure(headless = false): Promise<void> {
   const initial = await loadWhatsAppConfig();
   let done = false;
   const { waitUntilExit, unmount } = render(
     <ConfigureApp
       initial={initial}
+      headless={headless}
       onSave={async (config) => {
         await saveWhatsAppConfig(config);
       }}

@@ -21,6 +21,7 @@ export type ConfigureScreen =
 
 export type ConfigureAppProps = {
   initial: WhatsAppConfig;
+  headless: boolean;
   onSave: (config: WhatsAppConfig) => Promise<void>;
   onExit: () => void;
 };

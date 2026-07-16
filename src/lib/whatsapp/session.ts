@@ -53,7 +53,13 @@ export class WhatsAppSession {
   private readonly authFailureDeferred = createDeferred<string>();
   private readonly disconnectedDeferred = createDeferred<string>();
 
-  constructor(options: { io?: CliIO; onQr?: (qr: string) => void }) {
+  constructor(
+    private readonly options: {
+      io?: CliIO;
+      onQr?: (qr: string) => void;
+      headless?: boolean;
+    },
+  ) {
     this.io = options.io ?? new CliIO();
     this.onQr = options.onQr ?? (() => {});
   }
@@ -559,6 +565,7 @@ export class WhatsAppSession {
       },
       puppeteer: {
         executablePath,
+        headless: this.options.headless ?? false,
         args: [
           "--no-sandbox",
           "--disable-setuid-sandbox",

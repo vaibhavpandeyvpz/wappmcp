@@ -9,10 +9,11 @@ export class ConfigureCommand implements CliCommand {
       .description(
         "Interactively manage WhatsApp connection and event allowlist in .wappmcp/config.json.",
       )
+      .option("--headless", "Run the WhatsApp browser without a visible window")
       .action(this.action.bind(this));
   }
 
-  private async action(): Promise<void> {
-    await configure();
+  private async action(options: { headless?: boolean }): Promise<void> {
+    await configure(Boolean(options.headless));
   }
 }
