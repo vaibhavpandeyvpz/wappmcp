@@ -2,10 +2,11 @@ import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { WhatsAppEventAllowlist } from "./config.js";
 import type { WhatsAppSession } from "./session.js";
 import type {
-  ChannelPermissionBehavior,
+  ChannelPermissionOption,
   Entity,
   Message,
   MessageWithParent,
+  PendingPermissionRequest,
   WwebMessage,
 } from "./types.js";
 import { saveMessageMedia } from "../attachments.js";
@@ -31,7 +32,7 @@ export class WhatsAppChannel {
     private readonly session: WhatsAppSession,
     private readonly mcp: Server,
     private readonly channel: string,
-    private readonly permissionRequests: Map<string, string>,
+    private readonly permissionRequests: Map<string, PendingPermissionRequest>,
     private readonly allowlist?: WhatsAppEventAllowlist,
   ) {}
 
@@ -129,7 +130,7 @@ export class WhatsAppChannel {
 
   private async parsePermissionVerdict(message: WwebMessage): Promise<{
     requestId: string;
-    behavior: ChannelPermissionBehavior;
+    behavior: string;
     messageId: string;
   } | null> {
     if (!message.hasQuotedMsg) {
@@ -148,18 +149,21 @@ export class WhatsAppChannel {
       return null;
     }
 
-    const requestId = this.permissionRequests.get(messageId);
-    if (!requestId) {
+    const request = this.permissionRequests.get(messageId);
+    if (!request) {
       return null;
     }
 
-    const behavior = parsePermissionBehavior(message.body ?? "");
+    const behavior = matchPermissionBehavior(
+      message.body ?? "",
+      request.options,
+    );
     if (!behavior) {
       return null;
     }
 
     return {
-      requestId,
+      requestId: request.requestId,
       behavior,
       messageId,
     };
@@ -177,25 +181,47 @@ export class WhatsAppChannel {
   }
 }
 
-function parsePermissionBehavior(
-  text: string,
-): ChannelPermissionBehavior | null {
-  const command = text.trim().toLowerCase();
-  if (!command) {
+function matchPermissionBehavior(
+  reply: string,
+  options: ChannelPermissionOption[],
+): string | null {
+  const foldedReply = foldPermissionOption(reply);
+  if (!foldedReply) {
     return null;
   }
 
-  if (command === "yes" || command === "y" || command === "allow") {
-    return "allow_once";
+  const exactMatches = matchingPermissionOptions(
+    options,
+    (value) => foldPermissionOption(value) === foldedReply,
+  );
+  if (exactMatches.length === 1) {
+    return exactMatches[0]!.id;
+  }
+  if (exactMatches.length > 1) {
+    return null;
   }
 
-  if (command === "always" || command === "a" || command === "allow always") {
-    return "allow_always";
-  }
+  const normalizedReply = normalizePermissionOption(reply);
+  const fuzzyMatches = matchingPermissionOptions(
+    options,
+    (value) => normalizePermissionOption(value) === normalizedReply,
+  );
+  return fuzzyMatches.length === 1 ? fuzzyMatches[0]!.id : null;
+}
 
-  if (command === "no" || command === "n" || command === "deny") {
-    return "deny";
-  }
+function matchingPermissionOptions(
+  options: ChannelPermissionOption[],
+  matches: (value: string) => boolean,
+): ChannelPermissionOption[] {
+  return options.filter(
+    (option) => matches(option.id) || matches(option.label),
+  );
+}
 
-  return null;
+function foldPermissionOption(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function normalizePermissionOption(value: string): string {
+  return foldPermissionOption(value).replace(/[\s_-]+/gu, "");
 }

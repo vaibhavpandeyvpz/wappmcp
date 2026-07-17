@@ -9,11 +9,19 @@ import { packageMetadata } from "../package-metadata.js";
 import type { WhatsAppEventAllowlist } from "../whatsapp/config.js";
 import { WhatsAppChannel } from "../whatsapp/channel.js";
 import type { WhatsAppSession } from "../whatsapp/session.js";
+import type {
+  ChannelPermissionOption,
+  PendingPermissionRequest,
+} from "../whatsapp/types.js";
 
 const HOOMAN_CHANNEL = "hooman/channel";
 const HOOMAN_CHANNEL_PERMISSION = "hooman/channel/permission";
 const HOOMAN_PERMISSION_REQUEST_METHOD =
   "notifications/hooman/channel/permission_request";
+
+function formatPermissionOptions(options: ChannelPermissionOption[]): string {
+  return options.map((option) => option.label).join(", ");
+}
 
 function instructions(channel: boolean = false): string {
   const files = ["formatting.md", channel ? "channel.md" : null].filter(
@@ -30,7 +38,7 @@ export class WhatsAppMcpServer {
   readonly mcp: McpServer;
   private readonly permissionRequestsByPromptMessageId = new Map<
     string,
-    string
+    PendingPermissionRequest
   >();
 
   private constructor(
@@ -448,6 +456,12 @@ export class WhatsAppMcpServer {
         tool_name: z.string().min(1),
         description: z.string().min(1),
         input_preview: z.string().min(1),
+        options: z.array(
+          z.object({
+            id: z.string().min(1),
+            label: z.string().min(1),
+          }),
+        ),
         meta: z
           .object({
             source: z.string().optional(),
@@ -470,7 +484,7 @@ export class WhatsAppMcpServer {
           `Description: ${params.description}`,
           `Input: ${params.input_preview}`,
           "",
-          'Reply to this message with "yes", "always", or "no".',
+          `Reply to this message with one of these options: ${formatPermissionOptions(params.options)}`,
         ].join("\n");
         const messageId = params.meta?.thread?.trim();
         let promptMessageId: string;
@@ -483,10 +497,10 @@ export class WhatsAppMcpServer {
         } else {
           promptMessageId = await this.session.sendMessage(chatId, text);
         }
-        this.permissionRequestsByPromptMessageId.set(
-          promptMessageId,
-          params.request_id,
-        );
+        this.permissionRequestsByPromptMessageId.set(promptMessageId, {
+          requestId: params.request_id,
+          options: params.options,
+        });
       },
     );
   }
