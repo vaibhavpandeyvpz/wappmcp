@@ -1,3 +1,48 @@
+diff --git a/node_modules/whatsapp-web.js/src/structures/Reaction.js b/node_modules/whatsapp-web.js/src/structures/Reaction.js
+index d763124..564eec9 100644
+--- a/node_modules/whatsapp-web.js/src/structures/Reaction.js
++++ b/node_modules/whatsapp-web.js/src/structures/Reaction.js
+@@ -18,7 +18,7 @@ class Reaction extends Base {
+          * Reaction ID
+          * @type {object}
+          */
+-        this.id = data.msgKey;
++        this.id = Reaction._withSerializedId(data.msgKey);
+         /**
+          * Orphan
+          * @type {number}
+@@ -48,7 +48,7 @@ class Reaction extends Base {
+          * Message ID
+          * @type {object}
+          */
+-        this.msgId = data.parentMsgKey;
++        this.msgId = Reaction._withSerializedId(data.parentMsgKey);
+         /**
+          * Sender ID
+          * @type {string}
+@@ -62,6 +62,22 @@ class Reaction extends Base {
+ 
+         return super._patch(data);
+     }
++
++    /**
++     * Returns a MsgKey with `_serialized` populated. WhatsApp Web's July 2026 build renamed the
++     * property to the minifier-mangled `$1`; `id` and `msgId` are typed as `MessageId`, whose
++     * `_serialized` is not optional, so consumers read it directly. Leaves an already-serialized
++     * key untouched.
++     * @param {object} key
++     * @returns {object}
++     * @private
++     */
++    static _withSerializedId(key) {
++        if (key && key._serialized == null && key.$1 != null) {
++            return Object.assign({}, key, { _serialized: key.$1 });
++        }
++        return key;
++    }
+ }
+ 
+ module.exports = Reaction;
 diff --git a/node_modules/whatsapp-web.js/src/util/Injected/Utils.js b/node_modules/whatsapp-web.js/src/util/Injected/Utils.js
 index 540078a..878a47a 100644
 --- a/node_modules/whatsapp-web.js/src/util/Injected/Utils.js
