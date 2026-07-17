@@ -18,11 +18,7 @@ export interface Entity {
 }
 
 export type ConnectionState =
-  | "idle"
-  | "starting"
-  | "pairing"
-  | "connected"
-  | "disconnected";
+  "idle" | "starting" | "pairing" | "connected" | "disconnected";
 
 export interface Battery {
   battery: number;

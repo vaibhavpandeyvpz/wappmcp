@@ -15,9 +15,7 @@ export type Notice = {
 };
 
 export type ConfigureScreen =
-  | { kind: "home" }
-  | { kind: "edit-users" }
-  | { kind: "edit-chats" };
+  { kind: "home" } | { kind: "edit-users" } | { kind: "edit-chats" };
 
 export type ConfigureAppProps = {
   initial: WhatsAppConfig;

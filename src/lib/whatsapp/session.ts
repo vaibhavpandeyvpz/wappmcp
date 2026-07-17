@@ -24,6 +24,7 @@ import type {
 import { CliIO } from "../cli-io.js";
 import { createDeferred } from "../deferred-promise.js";
 import { profilePath, webCacheRoot } from "../paths.js";
+import { raceWithTimeout } from "../timeout.js";
 
 const { Client, LocalAuth, MessageMedia } = wwebjs;
 
@@ -82,36 +83,44 @@ export class WhatsAppSession {
   }
 
   async waitForStartup(timeoutMs: number): Promise<StartResult> {
-    return Promise.race([
-      this.readyDeferred.promise.then(
-        (info) => ({ kind: "ready", info }) as const,
-      ),
-      this.qrDeferred.promise.then((qr) => ({ kind: "qr", qr }) as const),
-      this.authFailureDeferred.promise.then(
-        (message) => ({ kind: "auth_failure", message }) as const,
-      ),
-      this.disconnectedDeferred.promise.then(
-        (reason) => ({ kind: "disconnected", reason }) as const,
-      ),
-      new Promise((resolve) => {
-        setTimeout(resolve, timeoutMs);
-      }).then(() => ({ kind: "timeout" }) as const),
-    ]);
+    return raceWithTimeout<StartResult>(
+      [
+        this.readyDeferred.promise.then(
+          (info) => ({ kind: "ready", info }) as const,
+        ),
+        this.qrDeferred.promise.then((qr) => ({ kind: "qr", qr }) as const),
+        this.authFailureDeferred.promise.then(
+          (message) => ({ kind: "auth_failure", message }) as const,
+        ),
+        this.disconnectedDeferred.promise.then(
+          (reason) => ({ kind: "disconnected", reason }) as const,
+        ),
+      ],
+      timeoutMs,
+      { kind: "timeout" },
+    );
   }
 
   async waitForReady(timeoutMs: number): Promise<void> {
-    const result = await Promise.race([
-      this.readyDeferred.promise.then(() => ({ kind: "ready" }) as const),
-      this.authFailureDeferred.promise.then(
-        (message) => ({ kind: "auth_failure", message }) as const,
-      ),
-      this.disconnectedDeferred.promise.then(
-        (reason) => ({ kind: "disconnected", reason }) as const,
-      ),
-      new Promise((resolve) => {
-        setTimeout(resolve, timeoutMs);
-      }).then(() => ({ kind: "timeout" }) as const),
-    ]);
+    type ReadyResult =
+      | { kind: "ready" }
+      | { kind: "auth_failure"; message: string }
+      | { kind: "disconnected"; reason: string }
+      | { kind: "timeout" };
+
+    const result = await raceWithTimeout<ReadyResult>(
+      [
+        this.readyDeferred.promise.then(() => ({ kind: "ready" }) as const),
+        this.authFailureDeferred.promise.then(
+          (message) => ({ kind: "auth_failure", message }) as const,
+        ),
+        this.disconnectedDeferred.promise.then(
+          (reason) => ({ kind: "disconnected", reason }) as const,
+        ),
+      ],
+      timeoutMs,
+      { kind: "timeout" },
+    );
 
     if (result.kind === "ready") {
       return;
@@ -137,36 +146,37 @@ export class WhatsAppSession {
       return;
     }
 
-    try {
-      await Promise.race([
-        client.destroy(),
-        new Promise<void>((resolve) => {
-          setTimeout(resolve, 5000);
-        }),
-      ]);
-    } catch {
-      // Continue with best-effort browser cleanup.
-    }
-
-    client.removeAllListeners();
-
     const browser = (
       client as unknown as {
         pupBrowser?: {
-          close?: () => Promise<void>;
+          disconnect?: () => Promise<void>;
           process?: () => { kill: (signal?: string) => void } | null;
         };
       }
     ).pupBrowser;
+    const result = await raceWithTimeout<"fulfilled" | "rejected" | "timeout">(
+      [
+        client.destroy().then(
+          () => "fulfilled" as const,
+          () => "rejected" as const,
+        ),
+      ],
+      5000,
+      "timeout",
+    );
 
-    if (!browser) {
+    client.removeAllListeners();
+
+    if (result === "fulfilled" || !browser) {
       return;
     }
 
     try {
-      await browser.close?.();
+      void browser.disconnect?.().catch(() => {
+        // Ignore asynchronous transport cleanup failures.
+      });
     } catch {
-      // Ignore close failures and try terminating process directly.
+      // Ignore synchronous transport cleanup failures.
     }
 
     try {
@@ -603,11 +613,6 @@ export class WhatsAppSession {
       if (!this.authFailureDeferred.settled) {
         this.authFailureDeferred.resolve(message);
       }
-      if (!this.readyDeferred.settled) {
-        this.readyDeferred.reject(
-          new Error(`Authentication failed: ${message}`),
-        );
-      }
     });
 
     client.on("disconnected", (reason) => {
@@ -615,13 +620,6 @@ export class WhatsAppSession {
       this.io.error(`Disconnected: ${String(reason)}`);
       if (!this.disconnectedDeferred.settled) {
         this.disconnectedDeferred.resolve(String(reason));
-      }
-      if (!this.readyDeferred.settled) {
-        this.readyDeferred.reject(
-          new Error(
-            `WhatsApp disconnected before becoming ready: ${String(reason)}`,
-          ),
-        );
       }
     });
 

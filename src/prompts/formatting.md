@@ -8,7 +8,7 @@ Keep formatting simple and mobile-friendly:
 - Allowed formatting only:
   - _bold_ using (single) asterisks
   - _italic_ using underscores
-  - ~strikethrough~ using (single) tildes
+  - ~~strikethrough~~ using (single) tildes
   - `inline code` using backticks
   - `multi-line code block` using triple backticks
   - `* item` or `- item` for bulleted lists
